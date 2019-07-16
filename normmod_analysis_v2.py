@@ -66,7 +66,7 @@ def threshmat(inputfile, threshold='fdr', variant='comb'):
         return posthreshmat
     elif variant=='neg':
         return negthreshmat
-    else:
+    elif variant=='comb':
         # Combine both matrices and sum over edges to get one value per subject
         combthreshmat=posthreshmat+negthreshmat
         return combthreshmat
