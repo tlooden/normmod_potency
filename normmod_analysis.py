@@ -70,6 +70,25 @@ def threshmat(inputfile, threshold='fdr', variant='comb'):
         # Combine both matrices and sum over edges to get one value per subject
         combthreshmat=posthreshmat+negthreshmat
         return combthreshmat
+    
+    
+#%%
+        
+"""
+For generating abnormality scores for each subject using extreme-value
+statistics to retrieve the mean value of the top % of deviant edges. 
+"""
+
+def EVD(process_dir):
+    thr=0.01
+    Z=np.loadtxt(process_dir)
+
+    m=Z.shape
+    l=np.int(m[0]*thr)
+    
+    T=np.sort(np.abs(Z),axis=0)[m[0]-l:m[0],:]
+    E=scipy.stats.trim_mean(T, 0.1)
+    return E   
 
 #%%
 
@@ -131,7 +150,7 @@ for i,task in enumerate(tasks):
 
 # For TD vs ASDadhd- vs ASDadhd+
 
-threshold=2
+threshold=1.96
 variant='comb'
 
 
@@ -165,23 +184,7 @@ for i,task in enumerate(tasks):
     else:
         e=np.hstack([e,d])
         
-#%%
-        
-"""
-For generating abnormality scores for each subject using extreme-value
-statistics to retrieve the mean value of the top % of deviant edges. 
-"""
-
-def EVD(process_dir):
-    thr=0.01
-    Z=np.loadtxt(process_dir)
-
-    m=Z.shape
-    l=np.int(m[0]*thr)
-    
-    T=np.sort(np.abs(Z),axis=0)[m[0]-l:m[0],:]
-    E=scipy.stats.trim_mean(T, 0.1)
-    return E    
+ 
 
 #%%
 """
@@ -190,27 +193,23 @@ To be used for analysis of which edges are often deviant.
 """
 
 
-Z=nispat.fileio.load('/project/3015045.07/norm_mod/leap_potency_abs_harm/flanker/crossval/Z.txt')
+Z=nispat.fileio.load('/project/3015045.07/norm_mod/leap_potency_harm/flanker/crossval/Z.txt')
 
 threshold=0.01
-limit=np.int(m[0]*threshold)
 m=Z.shape
+limit=np.int(m[0]*threshold)
+
 
 #preload matrix in which to enter the deviant indices.
 A=np.zeros(m) 
 
-indices=np.argsort(np.abs(X),axis=0)  
+indices=np.argsort(np.abs(Z),axis=0)  
 A[np.where(indices<=limit)]=1 
 
 #put back into matrix form
 
 B=np.zeros((168,168))
 B[np.triu_indices(168,1)]=np.sum(A,1)
-C=B.T+B
-
-
-#%%
-
 C=B.T+B
 
 abn_region=np.sum(C,0)
@@ -236,8 +235,8 @@ for task in tasks:
 df_comb=pd.DataFrame(e.T, columns=[ 'diagnosis', 'task','% deviant edges'])
 
 # Rename variables inside the dataframe to meaningful terms.
-df_comb['task']=df_neg['task'].replace({0: 'flanker', 1: 'hariri', 2: 'reward_m', 3: 'reward_s', 4 : 'tom'})
-df_comb['diagnosis']=df_neg['diagnosis'].replace({0: 'TD', 1: 'ASD', 2:'ASDadhd'})
+df_comb['task']=df_comb['task'].replace({0: 'flanker', 1: 'hariri', 2: 'reward_m', 3: 'reward_s', 4 : 'tom'})
+df_comb['diagnosis']=df_comb['diagnosis'].replace({0: 'TD', 1: 'ASD', 2:'ASDadhd'})
 
 #%%
 
@@ -255,35 +254,33 @@ sns.set(style="whitegrid")
 sns.violinplot(x='task',y='% deviant edges', hue='diagnosis',split=False, inner="quartile", data=df_comb)
 plt.legend(loc='lower right')
 
-plt.savefig("/home/mrstats/triloo/Workspace/Images/norm_mod/normmod_comb3.pdf")
+#plt.savefig("/home/mrstats/triloo/Workspace/Images/norm_mod/normmod_comb3.pdf")
+
 
 
 #%%
 
+import sklearn.decomposition
+
+pca=sklearn.decomposition.PCA(n_components=5)
+pca.fit(A.T)
+
+print(pca.explained_variance_ratio_)
+Acomponents=pca.components_
+
+
 """
-Generate a list of indexes for the subjects with high ADHD scores corresponding
-to each of the tasks. Can use this in the normmod script to separate these 
-groups """
-
-matsub_all=np.load('/home/mrstats/triloo/Workspace/Analysis/Aggregate_potency_matrices/matsub_all.npy', allow_pickle=True)
-matsub_ADHD=np.loadtxt('/home/mrstats/triloo/Workspace/LEAP_info/ASDadhd+.txt')
-
-adhd_subindex=[[]for i in range(5)]
-
-for t in range(5):
-    for n,i in enumerate(matsub_ADHD):
-        i=str(int(i))
-        
-        try:
-            adhd_subindex[t].append(matsub_all[0][t].index(i))
-        except:
-            pass
-    
+multiply components with subject values for the edges. Then get 5 values per sub (loadings).
+Then, clustering for the subjects on those values. can also check if loadings
+correlate with symptom scores (eg ADHD)
 
 
 
 
 
+
+
+"""
 
 
 
