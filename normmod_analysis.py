@@ -70,6 +70,28 @@ def threshmat(inputfile, threshold='fdr', variant='comb'):
         # Combine both matrices and sum over edges to get one value per subject
         combthreshmat=posthreshmat+negthreshmat
         return combthreshmat
+
+#%%
+
+"""
+Generate a list of indexes for the subjects with high ADHD scores corresponding
+to each of the tasks. Can use this in the normmod script to separate these 
+groups """
+
+matsub_all=np.load('/home/mrstats/triloo/Workspace/Analysis/Aggregate_potency_matrices/matsub_all.npy', allow_pickle=True)
+matsub_ADHD=np.loadtxt('/home/mrstats/triloo/Workspace/LEAP_info/ASDadhd+.txt')
+
+adhd_subindex=[[]for i in range(5)]
+
+for t in range(5):
+    for n,i in enumerate(matsub_ADHD):
+        i=str(int(i))
+        
+        try:
+            adhd_subindex[t].append(matsub_all[0][t].index(i))
+        except:
+            pass
+    
         
 
 #%%
@@ -110,14 +132,14 @@ for i,task in enumerate(tasks):
 # For TD vs ASDadhd- vs ASDadhd+
 
 threshold=2
-variant='pos'
+variant='comb'
 
 
 # Generate long-form arrays for DataFrame
 
 for i,task in enumerate(tasks):
-    inputfile_control='/project/3015045.07/norm_mod/leap_potency_abs_harm/'+task+'/crossval/Z.txt'
-    inputfile_case='/project/3015045.07/norm_mod/leap_potency_abs_harm/'+task+'/prediction/Z.txt'
+    inputfile_control='/project/3015045.07/norm_mod/leap_potency_harm/'+task+'/crossval/Z.txt'
+    inputfile_case='/project/3015045.07/norm_mod/leap_potency_harm/'+task+'/prediction/Z.txt'
     
     control = threshmat(inputfile_control, threshold, variant=variant)
     case = threshmat(inputfile_case, threshold, variant=variant)
@@ -129,7 +151,7 @@ for i,task in enumerate(tasks):
     # Generate dummy for diagnostic groups
     dumcontrol  = np.zeros(len(sumcontrol))
     dumasd      = np.ones(len(sumcase))
-    dumasd[list1[i]]=2
+    dumasd[adhd_subindex[i]]=2
     
     
     a = np.hstack([dumcontrol, dumasd])
@@ -143,15 +165,79 @@ for i,task in enumerate(tasks):
     else:
         e=np.hstack([e,d])
         
+#%%
         
+"""
+For generating abnormality scores for each subject using extreme-value
+statistics to retrieve the mean value of the top % of deviant edges. 
+"""
+
+def EVD(process_dir):
+    thr=0.01
+    Z=np.loadtxt(process_dir)
+
+    m=Z.shape
+    l=np.int(m[0]*thr)
+    
+    T=np.sort(np.abs(Z),axis=0)[m[0]-l:m[0],:]
+    E=scipy.stats.trim_mean(T, 0.1)
+    return E    
+
+#%%
+"""
+For generating a binary matrix with the x% top deviant edges per subject. 
+To be used for analysis of which edges are often deviant.
+"""
+
+
+Z=nispat.fileio.load('/project/3015045.07/norm_mod/leap_potency_abs_harm/flanker/crossval/Z.txt')
+
+threshold=0.01
+limit=np.int(m[0]*threshold)
+m=Z.shape
+
+#preload matrix in which to enter the deviant indices.
+A=np.zeros(m) 
+
+indices=np.argsort(np.abs(X),axis=0)  
+A[np.where(indices<=limit)]=1 
+
+#put back into matrix form
+
+B=np.zeros((168,168))
+B[np.triu_indices(168,1)]=np.sum(A,1)
+C=B.T+B
+
+
+#%%
+
+C=B.T+B
+
+abn_region=np.sum(C,0)
+
+
+
+#%%
+    
+for task in tasks:
+        
+    resultTD=EVD('/project/3015045.07/norm_mod/leap_potency_abs_harm/'+task+'/crossval/Z.txt')
+    
+    resultASD=EVD('/project/3015045.07/norm_mod/leap_potency_abs_harm/'+task+'/prediction/Z.txt')
+
+    print('-----')
+    print(np.mean(resultTD))
+    print(np.mean(resultASD))
+
+
 #%%
 
 # Build into datframe
-df_neg=pd.DataFrame(e.T, columns=[ 'diagnosis', 'task','% deviant edges'])
+df_comb=pd.DataFrame(e.T, columns=[ 'diagnosis', 'task','% deviant edges'])
 
 # Rename variables inside the dataframe to meaningful terms.
-df_neg['task']=df_neg['task'].replace({0: 'flanker', 1: 'hariri', 2: 'reward_m', 3: 'reward_s', 4 : 'tom'})
-df_neg['diagnosis']=df_neg['diagnosis'].replace({0: 'TD', 1: 'ASD', 2:'ASDadhd'})
+df_comb['task']=df_neg['task'].replace({0: 'flanker', 1: 'hariri', 2: 'reward_m', 3: 'reward_s', 4 : 'tom'})
+df_comb['diagnosis']=df_neg['diagnosis'].replace({0: 'TD', 1: 'ASD', 2:'ASDadhd'})
 
 #%%
 
@@ -166,58 +252,34 @@ std2=np.std(d1)
 
 # Plotting
 sns.set(style="whitegrid")
-sns.violinplot(x='task',y='% deviant edges', hue='diagnosis',split=False, inner="quartile", data=df_pos)
+sns.violinplot(x='task',y='% deviant edges', hue='diagnosis',split=False, inner="quartile", data=df_comb)
 plt.legend(loc='lower right')
 
-plt.savefig("/home/mrstats/triloo/Workspace/Images/norm_mod//normmod_abs_pos.pdf")
+plt.savefig("/home/mrstats/triloo/Workspace/Images/norm_mod/normmod_comb3.pdf")
 
 
 #%%
 
+"""
+Generate a list of indexes for the subjects with high ADHD scores corresponding
+to each of the tasks. Can use this in the normmod script to separate these 
+groups """
 
 matsub_all=np.load('/home/mrstats/triloo/Workspace/Analysis/Aggregate_potency_matrices/matsub_all.npy', allow_pickle=True)
-
 matsub_ADHD=np.loadtxt('/home/mrstats/triloo/Workspace/LEAP_info/ASDadhd+.txt')
 
-
-
-#%%
-
-#print(matsub_onlyADHD[0][4])
-
-print(matsub_all[0][0])
-
-#print(matsub_all[0][4][0][0])
-
-#%%
-
-# Generate a list of indexes for the subjects with high ADHD scores corresponding
-# to each of the tasks.
-
-list1=[[]for i in range(5)]
-
+adhd_subindex=[[]for i in range(5)]
 
 for t in range(5):
     for n,i in enumerate(matsub_ADHD):
         i=str(int(i))
         
         try:
-            list1[t].append(matsub_all[0][t].index(i))
+            adhd_subindex[t].append(matsub_all[0][t].index(i))
         except:
             pass
     
 
-#%%
-
-
-print(len(list1[1]))
-
-np.ones(len(list1[i]))
-
-
-a=np.append([np.ones(3), np.zeros(3)], np.ones(3))
-
-np.full(len(list1[0]),2)
 
 
 
